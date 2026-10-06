@@ -3,10 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MedStudio - Preparazione Medicina</title>
+    <title>MedStudio Pro - Preparazione Medicina</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" id="MathJax-script" async></script>
+    
+    <!-- SDK Firebase per Sincronizzazione Cloud -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
     <style>
         :root[data-theme="dark"] {
             --bg-primary: #0f172a; --bg-secondary: #1e293b; --bg-card: #334155;
@@ -49,13 +54,12 @@
         .topic-list { margin-top: 0.5rem; padding-left: 0.25rem; }
         .topic-list.collapsed { display: none; }
         
-        /* Topic Item Grafica */
         .topic-item { border: 1px solid var(--border); border-radius: 10px; padding: 0.85rem 1.1rem; margin-bottom: 0.6rem; display: flex; flex-direction: column; gap: 0.75rem; background-color: var(--status-todo-bg); transition: all 0.2s ease; }
         @media (min-width: 640px) { .topic-item { flex-direction: row; align-items: center; justify-content: space-between; } }
         
         .topic-item.status-todo { border-left: 4px solid var(--text-muted); }
         .topic-item.status-review { background-color: var(--status-review-bg); border-color: var(--warning); border-left: 5px solid var(--warning); }
-        .topic-item.status-done { background-color: var(--status-done-bg); border-color: var(--success); border-left: 5px solid var(--success); opacity: 0.85; }
+        .topic-item.status-done { background-color: var(--status-done-bg); border-color: var(--success); border-left: 5px solid var(--success); opacity: 0.75; }
         .topic-item.status-done .topic-text { text-decoration: line-through; color: var(--text-muted); }
         
         .topic-info { display: flex; flex-direction: column; gap: 0.2rem; flex: 1; }
@@ -73,14 +77,12 @@
         .flashcard-box.flipped .flashcard-inner { transform: rotateY(180deg); }
         .flashcard-front, .flashcard-back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 12px; border: 1px solid var(--border); padding: 1.5rem; display: flex; flex-direction: column; justify-content: center; align-items: center; background-color: var(--bg-card); }
         .flashcard-back { transform: rotateY(180deg); background-color: var(--bg-secondary); }
-        .formula-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
 
-        /* Lock-In Banner */
         .lock-banner { padding: 0.75rem 1rem; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; font-weight: 600; font-size: 0.9rem; }
         .lock-active { background-color: rgba(239, 68, 68, 0.15); border: 1px solid var(--danger); color: #fca5a5; }
         .lock-inactive { background-color: rgba(34, 197, 94, 0.15); border: 1px solid var(--success); color: #86efac; }
         
-        select, input[type="text"], input[type="number"] { background-color: var(--bg-primary); color: var(--text-main); border: 1px solid var(--border); padding: 0.4rem 0.6rem; border-radius: 6px; font-size: 0.85rem; }
+        select, input[type="text"], input[type="number"], textarea { background-color: var(--bg-primary); color: var(--text-main); border: 1px solid var(--border); padding: 0.4rem 0.6rem; border-radius: 6px; font-size: 0.85rem; }
     </style>
 </head>
 <body>
@@ -105,6 +107,7 @@
     <header>
         <div class="logo"><i class="fa-solid fa-stethoscope"></i> <span>MedStudio Pro</span></div>
         <div class="header-actions">
+            <button class="btn btn-secondary btn-sm" id="cloudBtn" onclick="loginWithGoogle()"><i class="fa-solid fa-cloud"></i> Accedi Cloud</button>
             <span id="userBadge" style="font-weight: 700; font-size: 0.85rem; padding: 0.3rem 0.6rem; border-radius: 6px; background-color: var(--bg-card); cursor: pointer;" onclick="showWelcomeModal()">--</span>
             <button class="btn btn-secondary" onclick="exportData()"><i class="fa-solid fa-download"></i></button>
             <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()"><i class="fa-solid fa-upload"></i></button>
@@ -129,10 +132,11 @@
         <div class="nav-tabs">
             <button class="tab-btn active" onclick="switchTab(this, 'agendaTab')"><i class="fa-solid fa-calendar-check"></i> Agenda di Oggi 🔒</button>
             <button class="tab-btn" onclick="switchTab(this, 'syllabusTab')"><i class="fa-solid fa-book"></i> Syllabus</button>
+            <button class="tab-btn" onclick="switchTab(this, 'errorLogTab')"><i class="fa-solid fa-book-bookmark"></i> Quadernino Errori 📖</button>
             <button class="tab-btn" onclick="switchTab(this, 'timerTab')"><i class="fa-solid fa-stopwatch"></i> Pomodoro</button>
             <button class="tab-btn" onclick="switchTab(this, 'flashcardsTab')"><i class="fa-solid fa-layer-group"></i> Flashcards</button>
-            <button class="tab-btn" onclick="switchTab(this, 'simulationsTab')"><i class="fa-solid fa-chart-line"></i> Simulazioni</button>
-            <button class="tab-btn" onclick="switchTab(this, 'formulasTab')"><i class="fa-solid fa-square-root-variable"></i> Formulario</button>
+            <button class="tab-btn" onclick="switchTab(this, 'simulationsTab')"><i class="fa-solid fa-chart-line"></i> Simulazioni & Calcolo Rischio</button>
+            <button class="tab-btn" onclick="switchTab(this, 'notesTab')"><i class="fa-solid fa-bolt"></i> Schemi Lampo</button>
         </div>
 
         <!-- TAB 0: AGENDA DI OGGI -->
@@ -145,11 +149,20 @@
             </div>
 
             <div class="card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                    <h3><i class="fa-solid fa-list-check"></i> Obiettivi Programmati per Oggi</h3>
-                    <span id="agendaProgress" style="font-weight: 700; color: var(--accent);">0/0 Completati</span>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+                    <h3><i class="fa-solid fa-list-check"></i> Obiettivi di Oggi</h3>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <button class="btn btn-secondary btn-sm" onclick="exportAgendaToICS()"><i class="fa-solid fa-calendar-plus"></i> Esporta per Calendar (.ics)</button>
+                        <span id="agendaProgress" style="font-weight: 700; color: var(--accent);">0/0 Completati</span>
+                    </div>
                 </div>
                 <div id="todayTaskList" style="display: flex; flex-direction: column; gap: 0.5rem;"></div>
+
+                <!-- SEZIONE COMPLETATI OGGI SPOSTATI IN FONDO -->
+                <div id="todayCompletedContainer" style="margin-top: 1.5rem; border-top: 1px dashed var(--border); padding-top: 1rem; display: none;">
+                    <h4 style="color: var(--success); font-size: 0.95rem; margin-bottom: 0.75rem;"><i class="fa-solid fa-circle-check"></i> Completati Oggi</h4>
+                    <div id="todayCompletedList" style="display: flex; flex-direction: column; gap: 0.5rem;"></div>
+                </div>
             </div>
         </div>
 
@@ -158,7 +171,42 @@
             <div id="syllabusContainer"></div>
         </div>
 
-        <!-- TAB 2: TIMER POMODORO -->
+        <!-- TAB 2: QUADER NINO DEGLI ERRORI -->
+        <div id="errorLogTab" class="tab-content">
+            <div class="card">
+                <h3><i class="fa-solid fa-circle-plus"></i> Aggiungi un Errore al Quadernino</h3>
+                <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem;">
+                    <div>
+                        <label style="font-size: 0.8rem; color: var(--text-muted);">Materia ed Argomento:</label>
+                        <select id="errorTopicSelect" style="width: 100%; margin-top: 0.25rem;"></select>
+                    </div>
+                    <textarea id="errorQuestionInput" rows="2" placeholder="Testo del quesito o concetto sbagliato..."></textarea>
+                    <textarea id="errorExplanationInput" rows="2" placeholder="Spiegazione / Perché avevi sbagliato? (Facoltativo)"></textarea>
+                    <button class="btn" onclick="addErrorItem()"><i class="fa-solid fa-floppy-disk"></i> Salva Errore</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+                    <h3><i class="fa-solid fa-book-open"></i> Errori Registrati</h3>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <button class="btn btn-secondary btn-sm" style="border-color: var(--accent); color: var(--accent);" onclick="copyGeminiErrorPrompt()">
+                            <i class="fa-solid fa-robot"></i> Copia Prompt Quiz per Gemini
+                        </button>
+                    </div>
+                </div>
+                <!-- FILTRO MATERIA -->
+                <div style="display: flex; gap: 0.4rem; margin-bottom: 1rem;">
+                    <button class="btn btn-secondary btn-sm" id="btnFilterAllErr" onclick="filterErrorLog('all')" style="border-color: var(--accent);">Tutti</button>
+                    <button class="btn btn-secondary btn-sm" id="btnFilterBioErr" onclick="filterErrorLog('Biologia')">Biologia</button>
+                    <button class="btn btn-secondary btn-sm" id="btnFilterChemErr" onclick="filterErrorLog('Chimica')">Chimica</button>
+                    <button class="btn btn-secondary btn-sm" id="btnFilterPhysErr" onclick="filterErrorLog('Fisica')">Fisica</button>
+                </div>
+                <div id="errorLogList" style="display: flex; flex-direction: column; gap: 0.75rem;"></div>
+            </div>
+        </div>
+
+        <!-- TAB 3: TIMER POMODORO -->
         <div id="timerTab" class="tab-content">
             <div class="card" style="max-width: 500px; margin: 0 auto;">
                 <h3 style="text-align: center;"><i class="fa-solid fa-brain"></i> Timer Pomodoro Focus</h3>
@@ -182,7 +230,6 @@
                     <button class="btn btn-secondary" onclick="resetTimer()"><i class="fa-solid fa-rotate-right"></i> Reset</button>
                 </div>
                 
-                <!-- Tasti Aggiungi / Rimuovi Tempo Manuale -->
                 <div style="display: flex; gap: 0.5rem; justify-content: center; margin-top: 1.25rem; flex-wrap: wrap;">
                     <button class="btn btn-secondary btn-sm" onclick="addManualHours(0.5)">+0.5h Manuali</button>
                     <button class="btn btn-secondary btn-sm" onclick="addManualHours(1.0)">+1.0h Manuali</button>
@@ -200,7 +247,7 @@
             </div>
         </div>
 
-        <!-- TAB 3: FLASHCARDS -->
+        <!-- TAB 4: FLASHCARDS -->
         <div id="flashcardsTab" class="tab-content">
             <div class="card" style="max-width: 650px; margin: 0 auto 1.5rem auto;">
                 <h3><i class="fa-solid fa-plus-circle"></i> Crea Nuova Flashcard</h3>
@@ -244,34 +291,92 @@
             </div>
         </div>
 
-        <!-- TAB 4: SIMULAZIONI -->
+        <!-- TAB 5: SIMULAZIONI & CALCOLO RISCHIO -->
         <div id="simulationsTab" class="tab-content">
-            <div class="card">
-                <h3><i class="fa-solid fa-plus"></i> Registra Nuova Simulazione / Quiz</h3>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; margin-top: 1rem;">
-                    <div><label style="font-size: 0.8rem;">Corrette (+1.5):</label><input type="number" id="simCorrect" value="0" min="0" style="width: 100%;"></div>
-                    <div><label style="font-size: 0.8rem;">Errate (-0.4):</label><input type="number" id="simWrong" value="0" min="0" style="width: 100%;"></div>
-                    <div><label style="font-size: 0.8rem;">Omesse (0.0):</label><input type="number" id="simOmitted" value="0" min="0" style="width: 100%;"></div>
-                    <div style="display: flex; align-items: flex-end;"><button class="btn" style="width: 100%;" onclick="addSimulation()"><i class="fa-solid fa-floppy-disk"></i> Salva Risultato</button></div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+                <div class="card">
+                    <h3><i class="fa-solid fa-plus"></i> Registra Simulazione</h3>
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem;">
+                        <div><label style="font-size: 0.8rem;">Corrette (+1.5):</label><input type="number" id="simCorrect" value="0" min="0" style="width: 100%;"></div>
+                        <div><label style="font-size: 0.8rem;">Errate (-0.4):</label><input type="number" id="simWrong" value="0" min="0" style="width: 100%;"></div>
+                        <div><label style="font-size: 0.8rem;">Omesse (0.0):</label><input type="number" id="simOmitted" value="0" min="0" style="width: 100%;"></div>
+                        <button class="btn" style="width: 100%;" onclick="addSimulation()"><i class="fa-solid fa-floppy-disk"></i> Salva Risultato</button>
+                    </div>
+                </div>
+                <div class="card" style="border-left: 4px solid var(--warning);">
+                    <h3><i class="fa-solid fa-calculator"></i> Calcolatore Rischio Quiz</h3>
+                    <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.5rem;">Inserisci quante opzioni sei in grado di escludere con certezza su una domanda per calcolare la convenienza statistica:</p>
+                    <div style="margin-top: 1rem; display: flex; flex-direction: column; gap: 0.75rem;">
+                        <label style="font-size: 0.85rem;">Opzioni escluse con certezza (su 5 totali):</label>
+                        <select id="riskOptionsSelect" onchange="calculateQuizRisk()" style="width: 100%;">
+                            <option value="0">0 opzioni escluse (Tiro a caso totale)</option>
+                            <option value="1">1 opzione esclusa (Scegli tra 4)</option>
+                            <option value="2">2 opzioni escluse (Scegli tra 3)</option>
+                            <option value="3">3 opzioni escluse (Dubbio 50/50 tra 2)</option>
+                        </select>
+                        <div id="riskResultBox" style="padding: 0.75rem; border-radius: 8px; background-color: var(--bg-primary); border: 1px solid var(--border); font-size: 0.85rem;">
+                            Seleziona le opzioni escluse per il calcolo.
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div class="card">
+            <div class="card" style="margin-top: 1.25rem;">
                 <h3><i class="fa-solid fa-list-check"></i> Storico Simulazioni</h3>
                 <div id="simulationsHistory" style="margin-top: 1rem;"><p style="color: var(--text-muted); font-size: 0.9rem;">Nessuna simulazione ancora registrata.</p></div>
             </div>
         </div>
 
-        <!-- TAB 5: FORMULARIO -->
-        <div id="formulasTab" class="tab-content">
-            <div class="formula-grid">
-                <div class="card"><h4 style="color: var(--accent);">Fisica: Cinematica & Dinamica</h4><p><b>Velocità:</b> $v = \frac{\Delta s}{\Delta t}$</p><p><b>Accelerazione:</b> $a = \frac{\Delta v}{\Delta t}$</p><p><b>Forza:</b> $F = m \cdot a$</p></div>
-                <div class="card"><h4 style="color: var(--accent);">Fisica: Fluidi & Termodinamica</h4><p><b>Pressione:</b> $P = \frac{F}{S}$</p><p><b>Stevino:</b> $P = P_0 + \rho \cdot g \cdot h$</p><p><b>Gas Perfetti:</b> $P \cdot V = n \cdot R \cdot T$</p></div>
-                <div class="card"><h4 style="color: var(--accent);">Chimica: Soluzioni & pH</h4><p><b>Moli:</b> $n = \frac{m}{PM}$</p><p><b>Molarità:</b> $M = \frac{n}{V(L)}$</p><p><b>pH:</b> $pH = -\log_{10}[H^+]$</p></div>
+        <!-- TAB 6: SCHEMI LAMPO -->
+        <div id="notesTab" class="tab-content">
+            <div class="card">
+                <h3><i class="fa-solid fa-bolt"></i> Ultra-Synthesizer: Crea Mappa Concettuale Rapida</h3>
+                <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem;">
+                    <label style="font-size: 0.85rem; color: var(--text-muted);">Argomento:</label>
+                    <select id="noteTopicSelect" style="width: 100%;"></select>
+                    <textarea id="noteTextInput" rows="4" placeholder="Incolla le tue note o concetti qui..."></textarea>
+                    <button class="btn" onclick="generateQuickNotes()"><i class="fa-solid fa-wand-magic-sparkles"></i> Sintetizza in Memory-Hooks</button>
+                </div>
+            </div>
+            <div class="card">
+                <h3><i class="fa-solid fa-bookmark"></i> Schemi e Concetti Salvati</h3>
+                <div id="savedNotesContainer" style="margin-top: 1rem;"><p style="color: var(--text-muted); font-size: 0.9rem;">Nessuno schema ancora salvato.</p></div>
             </div>
         </div>
     </div>
 
     <script>
+        // --- CONFIGURAZIONE FIREBASE CLOUD ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyDk6zMMTJv83DzUmDx3rsvF7hfzhOOqVqg",
+            authDomain: "medstudentforse.firebaseapp.com",
+            projectId: "medstudentforse",
+            storageBucket: "medstudentforse.firebasestorage.app",
+            messagingSenderId: "645763984887",
+            appId: "1:645763984887:web:bb7dfd316f554cb20712f2"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        let currentUser = null;
+
+        auth.onAuthStateChanged((user) => {
+            const btn = document.getElementById("cloudBtn");
+            if (user) {
+                currentUser = user;
+                if(btn) btn.innerHTML = `<i class="fa-solid fa-cloud-check"></i> Sincronizzato`;
+                loadStateFromCloud();
+            } else {
+                currentUser = null;
+                if(btn) btn.innerHTML = `<i class="fa-solid fa-cloud"></i> Accedi Cloud`;
+            }
+        });
+
+        function loginWithGoogle() {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            auth.signInWithPopup(provider).catch(err => alert("Errore Login: " + err.message));
+        }
+
         const initialSyllabus = {
             "Biologia": [
                 {
@@ -529,11 +634,14 @@
             studyHours: { "Biologia": 0, "Chimica": 0, "Fisica": 0 },
             simulations: [],
             customFlashcards: [],
+            errorLog: [],
+            quickNotes: [],
             collapsedUnits: {},
             streak: 0,
             theme: 'dark'
         };
 
+        let currentErrorFilter = 'all';
         let manualUnlock = false;
 
         document.addEventListener("DOMContentLoaded", () => {
@@ -549,10 +657,14 @@
             renderAgenda();
             renderSyllabus();
             populateFlashcardTopicSelectors();
+            populateNoteTopicSelector();
+            populateErrorTopicSelector();
+            renderErrorLog();
             updateDashboard();
             updateTimerDisplay();
             updateStudyHoursDisplay();
             renderSimulationsHistory();
+            renderSavedNotes();
             applyTheme();
         });
 
@@ -573,11 +685,39 @@
             if (!appState.studyHours) appState.studyHours = { "Biologia": 0, "Chimica": 0, "Fisica": 0 };
             if (!appState.todayPlannedTopicIds) appState.todayPlannedTopicIds = [];
             if (!appState.todayCompletedTopicIds) appState.todayCompletedTopicIds = [];
+            if (!appState.errorLog) appState.errorLog = [];
+            if (!appState.quickNotes) appState.quickNotes = [];
         }
 
         function saveState() {
             localStorage.setItem("medstudio_state", JSON.stringify(appState));
             updateDashboard();
+
+            if (currentUser) {
+                db.collection("users").doc(currentUser.uid).set({
+                    appState: appState
+                }, { merge: true }).catch(err => console.error("Errore salvataggio Cloud:", err));
+            }
+        }
+
+        function loadStateFromCloud() {
+            if (!currentUser) return;
+            db.collection("users").doc(currentUser.uid).get().then((doc) => {
+                if (doc.exists && doc.data().appState) {
+                    appState = Object.assign(appState, doc.data().appState);
+                    applyUserProfile();
+                    renderAgenda();
+                    renderSyllabus();
+                    renderErrorLog();
+                    updateDashboard();
+                    updateTimerDisplay();
+                    updateStudyHoursDisplay();
+                    renderSimulationsHistory();
+                    renderSavedNotes();
+                } else {
+                    saveState();
+                }
+            });
         }
 
         function isLockActive() {
@@ -639,6 +779,7 @@
             }
         }
 
+        /* AGENDA CON SEPARAZIONE DEI COMPLETATI */
         function renderAgenda() {
             const locked = isLockActive();
             const banner = document.getElementById("lockStatusBanner");
@@ -658,7 +799,6 @@
                 }
             }
 
-            // Spaced Repetition List
             const srList = document.getElementById("spacedRepetitionList");
             if (srList) {
                 const todayStr = new Date().toISOString().split('T')[0];
@@ -685,22 +825,28 @@
                 }
             }
 
-            // Today Task List
             const todayContainer = document.getElementById("todayTaskList");
+            const completedContainer = document.getElementById("todayCompletedContainer");
+            const completedList = document.getElementById("todayCompletedList");
+
+            const activePlanned = appState.todayPlannedTopicIds.filter(id => !appState.todayCompletedTopicIds.includes(id));
+            const completedPlanned = appState.todayPlannedTopicIds.filter(id => appState.todayCompletedTopicIds.includes(id));
+
             if (todayContainer) {
-                if (appState.todayPlannedTopicIds.length === 0) {
+                if (activePlanned.length === 0 && completedPlanned.length === 0) {
                     todayContainer.innerHTML = `<p style="color: var(--text-muted); font-size: 0.9rem;">Nessun argomento in Agenda. Vai nella scheda <b>Syllabus</b> e premi <b>+ Agenda</b> per aggiungere obiettivi!</p>`;
+                } else if (activePlanned.length === 0) {
+                    todayContainer.innerHTML = `<p style="color: var(--success); font-weight: 600; font-size: 0.9rem;">🎉 Hai completato tutti gli obiettivi di oggi!</p>`;
                 } else {
-                    todayContainer.innerHTML = appState.todayPlannedTopicIds.map(id => {
+                    todayContainer.innerHTML = activePlanned.map(id => {
                         const td = appState.topicsData[id] || { text: 'Argomento', subject: 'Generale' };
-                        const isDone = appState.todayCompletedTopicIds.includes(id);
                         return `
-                            <div style="display: flex; justify-content: space-between; align-items: center; background-color: var(--bg-card); padding: 0.75rem 1rem; border-radius: 10px; border: 1px solid var(--border); ${isDone ? 'opacity: 0.6; text-decoration: line-through;' : ''}">
+                            <div style="display: flex; justify-content: space-between; align-items: center; background-color: var(--bg-card); padding: 0.75rem 1rem; border-radius: 10px; border: 1px solid var(--border);">
                                 <div><b>[${td.subject}]</b> ${td.text}</div>
                                 <div style="display: flex; gap: 0.5rem; align-items: center;">
                                     <button class="btn btn-sm" style="background-color: var(--accent);" onclick="startTimerForTopic('${td.subject}')"><i class="fa-solid fa-play"></i> Pomodoro</button>
-                                    <button class="btn btn-sm ${isDone ? 'btn-secondary' : ''}" style="${isDone ? '' : 'background-color: var(--success); color: white;'}" onclick="toggleTodayTaskDone('${id}')">
-                                        ${isDone ? 'Completato ✅' : 'Spunta Fatto'}
+                                    <button class="btn btn-sm" style="background-color: var(--success); color: white;" onclick="toggleTodayTaskDone('${id}')">
+                                        Spunta Fatto
                                     </button>
                                     ${!locked ? `<button class="btn btn-secondary btn-sm" onclick="removeFromAgenda('${id}')"><i class="fa-solid fa-trash"></i></button>` : ''}
                                 </div>
@@ -710,10 +856,66 @@
                 }
             }
 
+            // RENDER SEZIONE COMPLETATI
+            if (completedContainer && completedList) {
+                if (completedPlanned.length > 0) {
+                    completedContainer.style.display = "block";
+                    completedList.innerHTML = completedPlanned.map(id => {
+                        const td = appState.topicsData[id] || { text: 'Argomento', subject: 'Generale' };
+                        return `
+                            <div style="display: flex; justify-content: space-between; align-items: center; background-color: var(--bg-card); padding: 0.6rem 0.85rem; border-radius: 8px; border: 1px solid var(--border); opacity: 0.75;">
+                                <div style="text-decoration: line-through; color: var(--text-muted);"><b>[${td.subject}]</b> ${td.text}</div>
+                                <button class="btn btn-secondary btn-sm" onclick="toggleTodayTaskDone('${id}')"><i class="fa-solid fa-rotate-left"></i> Ripristina</button>
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    completedContainer.style.display = "none";
+                }
+            }
+
             const progElem = document.getElementById("agendaProgress");
             if (progElem) {
                 progElem.innerText = `${appState.todayCompletedTopicIds.length}/${appState.todayPlannedTopicIds.length} Completati`;
             }
+        }
+
+        function exportAgendaToICS() {
+            if (!appState.todayPlannedTopicIds || appState.todayPlannedTopicIds.length === 0) {
+                alert("Nessun argomento programmato in Agenda per oggi!");
+                return;
+            }
+
+            const now = new Date();
+            const dateStr = now.toISOString().replace(/-|:|\.\d\d\d/g, "").substring(0, 8);
+
+            let icsContent = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//MedStudio Pro//IT\n";
+
+            appState.todayPlannedTopicIds.forEach((id, index) => {
+                const td = appState.topicsData[id] || { text: "Studio", subject: "Generale" };
+                const startHour = 9 + (index * 2);
+                const endHour = startHour + 1;
+
+                const startFormat = `${dateStr}T${startHour.toString().padStart(2, '0')}0000`;
+                const endFormat = `${dateStr}T${endHour.toString().padStart(2, '0')}0000`;
+
+                icsContent += "BEGIN:VEVENT\n";
+                icsContent += `SUMMARY:[MedStudio] ${td.subject}: ${td.text}\n`;
+                icsContent += `DESCRIPTION:Sessione di studio per il semestre filtro - ${td.text}\n`;
+                icsContent += `DTSTART:${startFormat}\n`;
+                icsContent += `DTEND:${endFormat}\n`;
+                icsContent += "END:VEVENT\n";
+            });
+
+            icsContent += "END:VCALENDAR";
+
+            const blob = new Blob([icsContent], { type: "text/calendar;charset=utf-8" });
+            const link = document.createElement("a");
+            link.href = window.URL.createObjectURL(blob);
+            link.setAttribute("download", `Piano_Studi_${dateStr}.ics`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         function addToAgenda(topicId) {
@@ -766,6 +968,7 @@
             renderSyllabus();
         }
 
+        /* SYLLABUS CON SEPARAZIONE DEGLI ARGOMENTI COMPLETATI */
         function renderSyllabus() {
             const container = document.getElementById("syllabusContainer");
             if (!container) return;
@@ -794,20 +997,52 @@
                     const topicList = document.createElement("div");
                     topicList.className = `topic-list ${isCollapsed ? 'collapsed' : ''}`;
 
+                    const activeTopics = [];
+                    const doneTopics = [];
+
                     u.topics.forEach(tObj => {
                         const tData = appState.topicsData[tObj.id] || { text: tObj.text, status: 'todo' };
-                        const itemHtml = createTopicItemElement(tObj.id, tData, sub, locked);
+                        if (tData.status === 'done') {
+                            doneTopics.push({ id: tObj.id, data: tData });
+                        } else {
+                            activeTopics.push({ id: tObj.id, data: tData });
+                        }
+                    });
+
+                    // Mostra prima gli argomenti attivi
+                    activeTopics.forEach(t => {
+                        const itemHtml = createTopicItemElement(t.id, t.data, sub, locked);
                         topicList.appendChild(itemHtml);
                     });
+
+                    // Se ci sono argomenti completati, mostrali in una sezione collassabile in fondo all'unità
+                    if (doneTopics.length > 0) {
+                        const doneAccordion = document.createElement("details");
+                        doneAccordion.style.marginTop = "0.75rem";
+                        doneAccordion.style.borderTop = "1px dashed var(--border)";
+                        doneAccordion.style.paddingTop = "0.5rem";
+                        
+                        const doneSummary = document.createElement("summary");
+                        doneSummary.style.cursor = "pointer";
+                        doneSummary.style.fontSize = "0.85rem";
+                        doneSummary.style.color = "var(--success)";
+                        doneSummary.style.fontWeight = "600";
+                        doneSummary.innerText = `📦 Argomenti Completati in questa Unità (${doneTopics.length})`;
+                        
+                        doneAccordion.appendChild(doneSummary);
+
+                        doneTopics.forEach(t => {
+                            const itemHtml = createTopicItemElement(t.id, t.data, sub, locked);
+                            doneAccordion.appendChild(itemHtml);
+                        });
+
+                        topicList.appendChild(doneAccordion);
+                    }
 
                     uCard.appendChild(uHeader);
                     uCard.appendChild(topicList);
                     container.appendChild(uCard);
                 });
-            }
-
-            if (window.MathJax && typeof MathJax.typesetPromise === "function") {
-                MathJax.typesetPromise();
             }
         }
 
@@ -852,6 +1087,130 @@
             }
         }
 
+        function populateErrorTopicSelector() {
+            const select = document.getElementById("errorTopicSelect");
+            if (!select) return;
+            select.innerHTML = "";
+
+            for (let sub in initialSyllabus) {
+                let group = document.createElement("optgroup");
+                group.label = sub;
+                initialSyllabus[sub].forEach(u => {
+                    u.topics.forEach(tObj => {
+                        let opt = document.createElement("option");
+                        opt.value = tObj.id;
+                        opt.innerText = tObj.text;
+                        group.appendChild(opt);
+                    });
+                });
+                select.appendChild(group);
+            }
+        }
+
+        function addErrorItem() {
+            const topicSelect = document.getElementById("errorTopicSelect");
+            const questionInp = document.getElementById("errorQuestionInput");
+            const expInp = document.getElementById("errorExplanationInput");
+
+            if (!topicSelect || !questionInp || !questionInp.value.trim()) {
+                alert("Inserisci il testo dell'errore!");
+                return;
+            }
+
+            const topicId = topicSelect.value;
+            const question = questionInp.value.trim();
+            const explanation = expInp ? expInp.value.trim() : "";
+            const td = appState.topicsData[topicId] || { text: "Generale", subject: "Generale" };
+
+            if (!appState.errorLog) appState.errorLog = [];
+
+            appState.errorLog.unshift({
+                id: 'err_' + Date.now(),
+                date: new Date().toLocaleDateString('it-IT'),
+                topicId: topicId,
+                subject: td.subject,
+                topicText: td.text,
+                question: question,
+                explanation: explanation
+            });
+
+            saveState();
+            questionInp.value = "";
+            if (expInp) expInp.value = "";
+            renderErrorLog();
+        }
+
+        function filterErrorLog(sub) {
+            currentErrorFilter = sub;
+            ['All', 'Bio', 'Chem', 'Phys'].forEach(s => {
+                const b = document.getElementById(`btnFilter${s}Err`);
+                if(b) b.style.borderColor = 'var(--border)';
+            });
+            const activeMap = { 'all':'All', 'Biologia':'Bio', 'Chimica':'Chem', 'Fisica':'Phys' };
+            const activeBtn = document.getElementById(`btnFilter${activeMap[sub]}Err`);
+            if(activeBtn) activeBtn.style.borderColor = 'var(--accent)';
+
+            renderErrorLog();
+        }
+
+        function renderErrorLog() {
+            const container = document.getElementById("errorLogList");
+            if (!container) return;
+
+            if (!appState.errorLog || appState.errorLog.length === 0) {
+                container.innerHTML = `<p style="color: var(--text-muted); font-size: 0.9rem;">Nessun errore salvato nel quadernino. Ottimo lavoro!</p>`;
+                return;
+            }
+
+            const filtered = currentErrorFilter === 'all' 
+                ? appState.errorLog 
+                : appState.errorLog.filter(e => e.subject === currentErrorFilter);
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<p style="color: var(--text-muted); font-size: 0.9rem;">Nessun errore registrato per questa materia.</p>`;
+                return;
+            }
+
+            container.innerHTML = filtered.map(err => `
+                <div style="background-color: var(--bg-card); padding: 0.85rem 1rem; border-radius: 10px; border: 1px solid var(--border); border-left: 4px solid var(--danger);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                        <span style="font-size: 0.8rem; font-weight: 700; color: var(--accent);">[${err.subject}] ${err.topicText}</span>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <span style="font-size: 0.75rem; color: var(--text-muted);">${err.date}</span>
+                            <button class="btn btn-secondary btn-sm" onclick="removeErrorItem('${err.id}')"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                    </div>
+                    <div style="font-size: 0.9rem; font-weight: 600; margin-bottom: 0.3rem;">❓ ${err.question}</div>
+                    ${err.explanation ? `<div style="font-size: 0.85rem; color: var(--text-muted); background: var(--bg-primary); padding: 0.5rem; border-radius: 6px; border: 1px dashed var(--border);">💡 <b>Nota:</b> ${err.explanation}</div>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function removeErrorItem(errId) {
+            appState.errorLog = appState.errorLog.filter(e => e.id !== errId);
+            saveState();
+            renderErrorLog();
+        }
+
+        function copyGeminiErrorPrompt() {
+            if (!appState.errorLog || appState.errorLog.length === 0) {
+                alert("Non hai ancora salvato errori nel quadernino!");
+                return;
+            }
+
+            let promptText = "Sono uno studente di Medicina che prepara il semestre filtro. Ecco una lista di domande/concetti che ho sbagliato di recente:\n\n";
+            appState.errorLog.slice(0, 10).forEach((err, idx) => {
+                promptText += `${idx + 1}. [${err.subject} - ${err.topicText}]: ${err.question}\n`;
+            });
+            promptText += "\nGenerami un quiz a risposta multipla (5 opzioni per domanda) di 10 quesiti focalizzati esattamente su questi argomenti errati, per aiutarmi a recuperarli. Includi le soluzioni dettagliate alla fine.";
+
+            navigator.clipboard.writeText(promptText).then(() => {
+                alert("Prompt copiato negli appunti! Ora incollalo direttamente su Gemini per generare il tuo test di recupero.");
+            }).catch(() => {
+                alert("Impossibile copiare il prompt negli appunti.");
+            });
+        }
+
         function populateFlashcardTopicSelectors() {
             const fcSelect = document.getElementById("fcTopicSelect");
             const filterSelect = document.getElementById("fcSpecificTopicSelect");
@@ -883,6 +1242,26 @@
 
                 fcSelect.appendChild(group1);
                 filterSelect.appendChild(group2);
+            }
+        }
+
+        function populateNoteTopicSelector() {
+            const noteSelect = document.getElementById("noteTopicSelect");
+            if (!noteSelect) return;
+            noteSelect.innerHTML = "";
+
+            for (let sub in initialSyllabus) {
+                let group = document.createElement("optgroup");
+                group.label = sub;
+                initialSyllabus[sub].forEach(u => {
+                    u.topics.forEach(tObj => {
+                        let opt = document.createElement("option");
+                        opt.value = tObj.id;
+                        opt.innerText = tObj.text;
+                        group.appendChild(opt);
+                    });
+                });
+                noteSelect.appendChild(group);
             }
         }
 
@@ -1108,6 +1487,70 @@
                 if (fcTitle) fcTitle.innerText = card.title;
                 if (fcNotes) fcNotes.innerText = card.notes;
             }, 200);
+        }
+
+        function calculateQuizRisk() {
+            const val = parseInt(document.getElementById("riskOptionsSelect").value);
+            const resultBox = document.getElementById("riskResultBox");
+            if (!resultBox) return;
+
+            if (val === 0) {
+                resultBox.style.borderColor = "var(--danger)";
+                resultBox.innerHTML = `<b>Valore Atteso: -0.02 pt</b> 🔴 NO! Non rispondere. Statisticamente perdi punti nel lungo periodo.`;
+            } else if (val === 1) {
+                resultBox.style.borderColor = "var(--danger)";
+                resultBox.innerHTML = `<b>Valore Atteso: +0.075 pt</b> ⚠️ Rischioso. Guadagno minimo a fronte di un rischio di penalità.`;
+            } else if (val === 2) {
+                resultBox.style.borderColor = "var(--warning)";
+                resultBox.innerHTML = `<b>Valore Atteso: +0.23 pt</b> 🟡 Consigliato se sei sotto il punteggio obiettivo.`;
+            } else if (val === 3) {
+                resultBox.style.borderColor = "var(--success)";
+                resultBox.innerHTML = `<b>Valore Atteso: +0.55 pt</b> 🟢 CONVIENE SEMPRE RISPONDERE! Matematicamente profittevole.`;
+            }
+        }
+
+        function generateQuickNotes() {
+            const topicSelect = document.getElementById("noteTopicSelect");
+            const textInp = document.getElementById("noteTextInput");
+            if (!topicSelect || !textInp || !textInp.value.trim()) { alert("Inserisci prima delle note da sintetizzare!"); return; }
+
+            const topicId = topicSelect.value;
+            const rawText = textInp.value.trim();
+            const td = appState.topicsData[topicId] || { text: "Generale", subject: "Generale" };
+
+            const bulletPoints = rawText.split('.').filter(s => s.trim().length > 3).map(s => `• ${s.trim()}`).join('<br>');
+
+            if (!appState.quickNotes) appState.quickNotes = [];
+            appState.quickNotes.unshift({
+                date: new Date().toLocaleDateString('it-IT'),
+                subject: td.subject,
+                topic: td.text,
+                notes: bulletPoints
+            });
+
+            saveState();
+            textInp.value = "";
+            renderSavedNotes();
+        }
+
+        function renderSavedNotes() {
+            const container = document.getElementById("savedNotesContainer");
+            if (!container) return;
+
+            if (!appState.quickNotes || appState.quickNotes.length === 0) {
+                container.innerHTML = `<p style="color: var(--text-muted); font-size: 0.9rem;">Nessuno schema ancora salvato.</p>`;
+                return;
+            }
+
+            container.innerHTML = appState.quickNotes.map((n, idx) => `
+                <div style="background-color: var(--bg-card); padding: 0.85rem; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 0.75rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                        <b style="color: var(--accent);">[${n.subject}] ${n.topic}</b>
+                        <span style="font-size: 0.75rem; color: var(--text-muted);">${n.date}</span>
+                    </div>
+                    <div style="font-size: 0.85rem; line-height: 1.6;">${n.notes}</div>
+                </div>
+            `).join('');
         }
 
         function addSimulation() {
